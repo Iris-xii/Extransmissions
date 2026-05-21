@@ -19,6 +19,7 @@ using BF = System.Reflection.BindingFlags;
 using MHS = ExtransmissionsMod.MoleculeHookState; // <- I'm lazy
 //dotnet build;rm Extransmissions.dll;cp bin/Debug/net4.5.2/Extransmissions.dll ./
 public class ExtransmissionsMod : QuintessentialMod {
+  public AtomType RandomAtom;
   public static Texture origInputBase;
   public static Texture origInputRing;
   public static Texture origInputGloss;
@@ -189,7 +190,11 @@ public class ExtransmissionsMod : QuintessentialMod {
   //method_1167()
   public static Part moleculeHookPart = null;
   public static Sim moleculeHookSimRef = null; 
-  public static HashSet<int> cyclesSeen = new();
+  private static HashSet<CyclesSeen> cyclesSeen = new();
+  private class CyclesSeen {
+    public Sim simref;
+    public int cycle;
+  }
   public Molecule MoleculeSpawnHook(Molecule original) {
     int moleculeHookIdxNumber = moleculeHookPart is not null ? moleculeHookPart.method_1167() : -1;
     if (maybeActiveER is not null
@@ -206,10 +211,10 @@ public class ExtransmissionsMod : QuintessentialMod {
         maybeActiveER.SimReset();
         cyclesSeen = new();
       }
-      if(cyclesSeen.Contains(moleculeHookSimRef.method_1818())) {
+      if(cyclesSeen.Contains(new CyclesSeen() {simref = moleculeHookSimRef,cycle = moleculeHookSimRef.method_1818()})) {
         return original;
       } else {
-        cyclesSeen.Add(moleculeHookSimRef.method_1818());
+        cyclesSeen.Add(new CyclesSeen() {simref = moleculeHookSimRef,cycle = moleculeHookSimRef.method_1818()});
       }
       Molecule alternate = maybeIR.chooseSpawnMolecule(
         new ExtraRules.RuleCtx(rng: maybeActiveER.rng,sim: moleculeHookSimRef),
@@ -225,6 +230,10 @@ public class ExtransmissionsMod : QuintessentialMod {
   }
 
   public override void LoadPuzzleContent() {
+    RandomAtom = Brimstone.API.CreateNormalAtom(81, "Extransmissions", "random",
+      pathToSymbol: "textures/atoms/extransmissions_random_symbol",
+      pathToDiffuse: "textures/atoms/extransmissions_random_diffuse");
+    QApi.AddAtomType(RandomAtom);
   }
 
 
