@@ -1,6 +1,7 @@
 using Quintessential;
 using MonoMod.RuntimeDetour;
 using MonoMod.Cil;
+using MonoMod;
 using Quintessential.Serialization;
 using YamlDotNet.Core;
 
@@ -187,12 +188,15 @@ public class ExtransmissionsMod : QuintessentialMod {
     orig(self, param_5012);
   }
 
+
+
   //method_1167()
   public static Part moleculeHookPart = null;
-  public static Sim moleculeHookSimRef = null; 
-  private static HashSet<CyclesSeen> cyclesSeen = new();
-  private class CyclesSeen {
-    public Sim simref;
+  public static Sim moleculeHookSimRef = null;
+  private static HashSet<CyclesSeen> cyclesSeen = new(); 
+  public static int simIterCounter = 0;
+  private record struct CyclesSeen {
+    public SolutionEditorBase seb;
     public int cycle;
   }
   public Molecule MoleculeSpawnHook(Molecule original) {
@@ -203,21 +207,24 @@ public class ExtransmissionsMod : QuintessentialMod {
         && moleculeHookIdxNumber >= 0
         && maybeActiveER.inputMolRules.TryGetValue(moleculeHookIdxNumber, out var maybeIR)
         && maybeIR is not null
-        && maybeIR.chooseSpawnMolecule is not null ) { 
-          //seb.method_503()
-      SolutionEditorBase seb = moleculeHookSimRef.field_3818;
+        && maybeIR.chooseSpawnMolecule is not null) {
+      //seb.method_503()
+      SolutionEditorBase seb = moleculeHookSimRef.field_3818; 
       var seb_play_status = seb.method_503();
-      if(seb_play_status == enum_128.Stopped) {
+      if (seb_play_status == enum_128.Stopped) {
         maybeActiveER.SimReset();
         cyclesSeen = new();
-      }
-      if(cyclesSeen.Contains(new CyclesSeen() {simref = moleculeHookSimRef,cycle = moleculeHookSimRef.method_1818()})) {
+      } 
+      if (cyclesSeen.Contains(new CyclesSeen() 
+        { seb = seb, cycle = moleculeHookSimRef.method_1818() })) {
         return original;
-      } else {
-        cyclesSeen.Add(new CyclesSeen() {simref = moleculeHookSimRef,cycle = moleculeHookSimRef.method_1818()});
+      }
+      else {
+        cyclesSeen.Add(new CyclesSeen() 
+          { seb = seb, cycle = moleculeHookSimRef.method_1818() });
       }
       Molecule alternate = maybeIR.chooseSpawnMolecule(
-        new ExtraRules.RuleCtx(rng: maybeActiveER.rng,sim: moleculeHookSimRef),
+        new ExtraRules.RuleCtx(rng: maybeActiveER.rng, sim: moleculeHookSimRef),
         original
       );
       HexIndex param_ = moleculeHookPart.method_1161();
@@ -327,13 +334,14 @@ public class ExtransmissionsMod : QuintessentialMod {
         ILCursor c = new(ilc);
         c.Emit(Mono.Cecil.Cil.OpCodes.Ldarg, 0);
         c.EmitDelegate((Sim s) => {
-          var cycle = s.method_1818(); 
-          if (cycle == 0 && maybeActiveER is not null) { 
-            ExtransmissionsMod.maybeActiveER.SimReset(); 
+          var cycle = s.method_1818();
+          if (cycle == 0 && maybeActiveER is not null) {
+            ExtransmissionsMod.maybeActiveER.SimReset();
           }
         });
       }
     ); 
+
   }
 
   public override void Unload() {
@@ -346,4 +354,5 @@ public class ExtransmissionsMod : QuintessentialMod {
   }
 
   public static void Log(string s) => Logger.Log($"[extransmissions] {s}");
+ 
 }
