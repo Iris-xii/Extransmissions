@@ -4,6 +4,8 @@ using MonoMod.Cil;
 using MonoMod;
 using Quintessential.Serialization;
 using YamlDotNet.Core;
+using MonoMod.Utils;
+using System.Runtime.CompilerServices;
 
 namespace Extransmissions;
 
@@ -15,6 +17,7 @@ using Texture = class_256;
 using PartInfo = class_236;
 using VanillaAtoms = Brimstone.API.VanillaAtoms;
 using BF = System.Reflection.BindingFlags;
+using MI = System.Reflection.MethodInfo;
 
 
 using MHS = ExtransmissionsMod.MoleculeHookState; // <- I'm lazy
@@ -37,11 +40,67 @@ public class ExtransmissionsMod : QuintessentialMod {
   public static SolutionEditorBase molHookStateSeb = null;
   public static readonly Random random = new();
 
-  public static ExtraRules maybeActiveER = null;
+  public static ConditionalWeakTable<SolutionEditorBase, ExtraRules> extraRulesTable = new();
+  public static ExtraRules maybeLastExtraRulesCreatedBySolutionInit = null;
   public static Dictionary<Molecule, int> inputMolMap = new();
   public static Dictionary<Molecule, int> outputMolMap = new();
 
   public override void Load() {
+  }
+ 
+  public void AcceptExtraOutputs(List<Part> list, Part item9, Sim s) { 
+    Solution method_1817() {
+      return s.field_3818.method_502(); 
+    }
+    bool method_1845(HexIndex a, HexRotation b, Molecule c, Molecule d) {
+      return (bool)typeof(Sim).GetMethod("method_1845", BF.NonPublic | BF.Static)
+      .Invoke(s, new object[] { a, b, c, d });
+    }
+    bool method_1833(Molecule a, List<Part> b) {
+      return (bool)typeof(Sim).GetMethod("method_1833", BF.NonPublic | BF.Instance)
+      .Invoke(s, new object[] { a, b });
+    }
+    void method_1856(Sound param_5408) {
+      typeof(Sim).GetMethod("method_1856", BF.NonPublic | BF.Instance)
+      .Invoke(s, new object[] { param_5408 });
+    }
+    int method_1846(HexIndex param_5385, Molecule param_5386, Molecule param_5387) {
+      return (int)typeof(Sim).GetMethod("method_1846", BF.NonPublic | BF.Static)
+      .Invoke(s, new object[] { param_5385, param_5386, param_5387 });
+    }
+    //
+    var seb = s.field_3818;
+    var ER =
+      extraRulesTable.GetValue(seb,
+      (s) => new ExtraRules(maybeLastExtraRulesCreatedBySolutionInit, ExtraRules.SebToPuzzle(s)));
+    
+    if(s is null) {return ;}
+
+    Molecule maybeOrigOutputMol = item9.method_1185(method_1817());
+    if (outputMolMap.ContainsKey(maybeOrigOutputMol)
+        && ER.outputMolRules.TryGetValue(outputMolMap[maybeOrigOutputMol], out var maybeOR)
+        && maybeOR is not null
+        && maybeOR.acceptedMolecules is not null) {
+      foreach (var acceptedMolModel in maybeOR.acceptedMolecules()) {
+        Molecule m = acceptedMolModel.Molecule.FromModel();
+        {
+          PartSimState partSimState5 = s.field_3821[item9];
+          HexIndex hexIndex9 = item9.method_1161();
+          HexRotation hexRotation = item9.method_1163();
+          Molecule origTRUE = item9.method_1185(method_1817()); // <- replace?
+          Molecule orig = m;
+          if (item9.method_1159().field_1553) {
+            Maybe<Molecule> origShift = s.method_1848(hexIndex9 + orig.method_1100().Keys.First().Rotated(hexRotation));
+            if (origShift.method_1085() && !method_1833(origShift.method_1087(), list) && method_1845(hexIndex9, hexRotation, orig, origShift.method_1087())) {
+              s.field_3823.Remove(origShift.method_1087());
+              partSimState5.field_2730 = Math.Min(partSimState5.field_2730 + 1, item9.method_1169());
+              partSimState5.field_2743 = true;
+              method_1856(class_238.field_1991.field_1868); 
+            } 
+          } 
+        }
+      }
+    } 
   }
 
   public delegate void origEditorMethod925(Molecule param_4569, Vector2 param_4570, HexIndex param_4571, float param_4572, float param_4573, float param_4574, float param_4575, bool param_4576, SolutionEditorBase param_4577);
@@ -58,41 +117,37 @@ public class ExtransmissionsMod : QuintessentialMod {
       SolutionEditorBase param_4577) {
     var simTime = molHookStateSeb is not null ? molHookStateSeb.method_510() : 0.0f;
     var gTime = molHookStateSeb is not null ? molHookStateSeb.method_509() : 0.0f;
-
+    var ER = param_4577 is not null ?
+      extraRulesTable.GetValue(param_4577, (s) => new ExtraRules(maybeLastExtraRulesCreatedBySolutionInit, ExtraRules.SebToPuzzle(s)))
+      : maybeLastExtraRulesCreatedBySolutionInit;
     if (molHookState == MHS.PRE_SOLVE_DRAW_INPUTS
         && inputMolMap.ContainsKey(molecule)
-        && maybeActiveER is not null
-        && maybeActiveER.inputMolRules.TryGetValue(inputMolMap[molecule], out var maybeIR)
+        && ER is not null
+        && ER.inputMolRules.TryGetValue(inputMolMap[molecule], out var maybeIR)
         && maybeIR is not null
         && maybeIR.displayMolecules is not null) {
-      var displayMolecules = maybeIR.displayMolecules(
-        new ExtraRules.RuleCtx(rng: maybeActiveER.rng, part: null, seb: molHookStateSeb));
+      var displayMolecules = maybeIR.displayMolecules();
       float molCount = (float)displayMolecules.Count;
-
       Molecule chosenMol =
         displayMolecules[(int)Math.Floor(gTime % molCount)].Molecule.FromModel();
 
       orig(chosenMol, param_4570, param_4571, param_4572, param_4573, param_4574, param_4575, param_4576, param_4577);
       return;
     }
-    //if (molHookState != MHS.OFF) {
-    //  //Logger.Log($"[extransmissions] {System.Environment.StackTrace}");  
-    //  Molecule origMolecule = param_4569;
-    //  Molecule changed = new();
-    //  foreach (var atom in origMolecule.method_1100()) { // atoms
-    //    AtomType target = atom.Value.field_2275;
-    //    if (atom.Value.field_2275 == VanillaAtoms.water || atom.Value.field_2275 == VanillaAtoms.fire) {
-    //      target = (random.Next() > (Int32.MaxValue / 2)) ? VanillaAtoms.fire : VanillaAtoms.water;
-    //    }
-    //    changed.method_1105(new(target), atom.Key);
-    //  }
-    //  foreach (var orig277 in origMolecule.method_1101()) {
-    //    var new277 = orig277.method_754();
-    //    changed.method_1112(new277.field_2186, new277.field_2187, new277.field_2188, new());
-    //  }
-    //  orig((gTime % 2.0) > 1.0 ? param_4569 : changed, param_4570, param_4571, param_4572, param_4573, param_4574, param_4575, param_4576, param_4577);
-    //  return;
-    //}
+    if (molHookState == MHS.DRAW_OUTPUTS
+        && outputMolMap.ContainsKey(molecule)
+        && ER is not null
+        && ER.outputMolRules.TryGetValue(outputMolMap[molecule], out var maybeOR)
+        && maybeOR is not null
+        && maybeOR.displayMolecules is not null) {
+      var displayMolecules = maybeOR.displayMolecules();
+      float molCount = (float)displayMolecules.Count;
+      Molecule chosenMol =
+        displayMolecules[(int)Math.Floor(gTime % molCount)].Molecule.FromModel();
+
+      orig(chosenMol, param_4570, param_4571, param_4572, param_4573, param_4574, param_4575, param_4576, param_4577);
+      return;
+    }
     orig(molecule, param_4570, param_4571, param_4572, param_4573, param_4574, param_4575, param_4576, param_4577);
     return;
   }
@@ -103,6 +158,7 @@ public class ExtransmissionsMod : QuintessentialMod {
     bool altTexture = random.Next() > (Int32.MaxValue / 2);
     ExtraRules.IOTextures maybeAltTextureInput = null;
     ExtraRules.IOTextures maybeAltTextureOutput = null;
+    var maybeActiveER = maybeLastExtraRulesCreatedBySolutionInit;
     if (maybeActiveER is not null) {
       bool isInput = inputMolMap.ContainsKey(molecule);
       bool isOutput = outputMolMap.ContainsKey(molecule);
@@ -166,12 +222,8 @@ public class ExtransmissionsMod : QuintessentialMod {
       PuzzleInfoScreen self,
       Solution param_5012) {
     Puzzle puzzle = param_5012.method_1934();
-    var perms = puzzle.CustomPermissions;
     Log($"Reading solution {param_5012.field_3915} @ {puzzle.field_2766}");
-    ExtraRules extraRules = new(puzzle.field_2766.GetHashCode());
-    foreach (var item in perms) {
-      extraRules.ReadCustomPermissionString(item);
-    }
+    ExtraRules extraRules = new(null, puzzle);
 
     inputMolMap.Clear();
     outputMolMap.Clear();
@@ -183,8 +235,7 @@ public class ExtransmissionsMod : QuintessentialMod {
     for (int i = 0; i < outputs.Length; i++) {
       outputMolMap.Add(outputs[i].field_2813, i);
     }
-
-    maybeActiveER = extraRules;
+    maybeLastExtraRulesCreatedBySolutionInit = extraRules;
     orig(self, param_5012);
   }
 
@@ -193,7 +244,7 @@ public class ExtransmissionsMod : QuintessentialMod {
   //method_1167()
   public static Part moleculeHookPart = null;
   public static Sim moleculeHookSimRef = null;
-  private static HashSet<CyclesSeen> cyclesSeen = new(); 
+  private static HashSet<CyclesSeen> cyclesSeen = new();
   public static int simIterCounter = 0;
   private record struct CyclesSeen {
     public SolutionEditorBase seb;
@@ -201,30 +252,29 @@ public class ExtransmissionsMod : QuintessentialMod {
   }
   public Molecule MoleculeSpawnHook(Molecule original) {
     int moleculeHookIdxNumber = moleculeHookPart is not null ? moleculeHookPart.method_1167() : -1;
-    if (maybeActiveER is not null
-        && moleculeHookSimRef is not null
+    if (maybeLastExtraRulesCreatedBySolutionInit is not null
         && moleculeHookPart is not null
         && moleculeHookIdxNumber >= 0
-        && maybeActiveER.inputMolRules.TryGetValue(moleculeHookIdxNumber, out var maybeIR)
+        && maybeLastExtraRulesCreatedBySolutionInit.inputMolRules.TryGetValue(moleculeHookIdxNumber, out var maybeIR)
         && maybeIR is not null
         && maybeIR.chooseSpawnMolecule is not null) {
       //seb.method_503()
-      SolutionEditorBase seb = moleculeHookSimRef.field_3818; 
-      var seb_play_status = seb.method_503();
-      if (seb_play_status == enum_128.Stopped) {
-        maybeActiveER.SimReset();
-        cyclesSeen = new();
-      } 
-      if (cyclesSeen.Contains(new CyclesSeen() 
-        { seb = seb, cycle = moleculeHookSimRef.method_1818() })) {
-        return original;
-      }
-      else {
-        cyclesSeen.Add(new CyclesSeen() 
-          { seb = seb, cycle = moleculeHookSimRef.method_1818() });
+      SolutionEditorBase seb = moleculeHookSimRef?.field_3818;
+      if (seb is not null) {
+        var seb_play_status = seb.method_503();
+        if (seb_play_status == enum_128.Stopped) {
+          maybeLastExtraRulesCreatedBySolutionInit.SimReset();
+          cyclesSeen = new();
+        }
+        if (cyclesSeen.Contains(new CyclesSeen() { seb = seb, cycle = moleculeHookSimRef?.method_1818() ?? -1 })) {
+          return original;
+        }
+        else {
+          cyclesSeen.Add(new CyclesSeen() { seb = seb, cycle = moleculeHookSimRef?.method_1818() ?? -1 });
+        }
       }
       Molecule alternate = maybeIR.chooseSpawnMolecule(
-        new ExtraRules.RuleCtx(rng: maybeActiveER.rng, sim: moleculeHookSimRef),
+        moleculeHookSimRef, seb,
         original
       );
       HexIndex param_ = moleculeHookPart.method_1161();
@@ -250,7 +300,8 @@ public class ExtransmissionsMod : QuintessentialMod {
   public ILHook h2;
   public Hook h;
   public ILHook moleculeSpawnHook;
-  public ILHook preSimHook; 
+  public ILHook preSimHook;
+  public ILHook outputAcceptHook;
 
   private delegate void orig_SolutionEditorBase_method_1994
     (SolutionEditorBase self, Part param_5558, Vector2 param_5559, bool param_5560, bool param_5561);
@@ -325,7 +376,7 @@ public class ExtransmissionsMod : QuintessentialMod {
         c.GotoNext(MoveType.After,
           i => i.MatchLdloc(6));
         c.EmitDelegate(MoleculeSpawnHook);
-        c.EmitDelegate(() => { moleculeHookSimRef = null; });
+        //c.EmitDelegate(() => { moleculeHookSimRef = null; });
       }
     );
     preSimHook = new ILHook(
@@ -335,12 +386,28 @@ public class ExtransmissionsMod : QuintessentialMod {
         c.Emit(Mono.Cecil.Cil.OpCodes.Ldarg, 0);
         c.EmitDelegate((Sim s) => {
           var cycle = s.method_1818();
-          if (cycle == 0 && maybeActiveER is not null) {
-            ExtransmissionsMod.maybeActiveER.SimReset();
+          if (cycle == 0) {
+            maybeLastExtraRulesCreatedBySolutionInit?.SimReset();
+            var seb = s.field_3818;
+            extraRulesTable.TryGetValue(seb, out var maybeSimEr);
+            maybeSimEr?.SimReset();
           }
         });
       }
-    ); 
+    );
+
+    outputAcceptHook = new ILHook(
+      typeof(Sim).GetMethod("orig_method_1832", BF.NonPublic | BF.Instance),
+      ilc => {
+        ILCursor c = new(ilc); 
+        c.GotoNext(MoveType.After,
+          i => i.MatchCallOrCallvirt(typeof(Sim).GetMethod("method_1848"))); 
+        c.Emit(Mono.Cecil.Cil.OpCodes.Ldloc, 0);
+        c.Emit(Mono.Cecil.Cil.OpCodes.Ldloc, 88);
+        c.Emit(Mono.Cecil.Cil.OpCodes.Ldarg, 0);
+        c.EmitDelegate(AcceptExtraOutputs); 
+      }
+    );
 
   }
 
@@ -350,9 +417,10 @@ public class ExtransmissionsMod : QuintessentialMod {
     h2 = null;
     h = null;
     moleculeSpawnHook = null;
-    preSimHook = null; 
+    preSimHook = null;
+    outputAcceptHook = null;
   }
 
   public static void Log(string s) => Logger.Log($"[extransmissions] {s}");
- 
+
 }

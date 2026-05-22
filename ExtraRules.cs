@@ -37,8 +37,10 @@ public class ExtraRules {
     newTextureBond = class_235.method_615("textures/parts/alt_output_bond"),
   };
   const string PREFIX = "extransmissions::rule::";
-  private static Dictionary<string, RuleKind> ruleKinds = new() {
-    {"RandomInputRule",new RandomInputRule()},
+  private static Dictionary<string, IRuleKind> ruleKinds = new() {
+    {"RandomInputRule", new RandomInputRule()},
+    {"RandomInput", new RandomInputRule()}, //<- adding 'Rule' is redundant AF but I already have puzzles with the old name
+    {"MultiOutput",new MultiOutput()},
   };
 
   int hash = 0;
@@ -46,11 +48,11 @@ public class ExtraRules {
   public Dictionary<int, InputRule> inputMolRules = new();
   public Dictionary<int, OutputRule> outputMolRules = new();
 
-  public static void AddRuleKind(string type, RuleKind rk) => ruleKinds.Add(type, rk);
+  public static void AddRuleKind(string type, IRuleKind rk) => ruleKinds.Add(type, rk);
 
 
 
-  public void SimReset() { 
+  public void SimReset() {
     rng = new Random(hash);
     foreach (var inputRule in inputMolRules) {
       if (inputRule.Value.onSimReset is not null) { inputRule.Value.onSimReset(); }
@@ -73,7 +75,7 @@ public class ExtraRules {
       //Log($"Loading data:\n{withoutPrefix}\n");
       if (type != "") { Log($"Loading type: {type}"); }
       if (type != ""
-          && ruleKinds[type] is RuleKind rk
+          && ruleKinds[type] is IRuleKind rk
           && rk.TryRead(withoutPrefix)) {
         rk.ApplyRule(this);
         //if (rk is RandomInputRule rir) { Log($"{rir.DebugStr()}"); }
@@ -85,10 +87,30 @@ public class ExtraRules {
     }
   }
 
-  internal ExtraRules(int hash) {
-    this.hash = hash;
+  internal ExtraRules(ExtraRules er) {
+    this.hash = er.hash;
+    this.inputMolRules = er.inputMolRules;
+    this.outputMolRules = er.outputMolRules;
     SimReset();
   }
+  internal ExtraRules(ExtraRules? er, Puzzle p) {
+    if (er is not null) {
+      this.hash = er.hash;
+      this.inputMolRules = er.inputMolRules;
+      this.outputMolRules = er.outputMolRules;
+      SimReset();
+    }
+    else {
+      int hash = p.field_2766.GetHashCode();
+      this.hash = hash;
+      var perms = p.CustomPermissions;
+      foreach (var item in perms) {
+        ReadCustomPermissionString(item);
+      }
+      SimReset();
+    }
+  }
+  public static Puzzle SebToPuzzle(SolutionEditorBase seb) => seb.method_502().method_1934();
 
   public class IOTextures {
     public Texture? newTextureBase;
@@ -96,41 +118,58 @@ public class ExtraRules {
     public Texture? newTextureGloss;
     public Texture? newTextureBond;
   }
-  public class RuleCtx {
-    public Part? p;
-    public SolutionEditorBase? seb;
-    public Sim? sim;
-    public Random rng;
-    internal RuleCtx(Random rng, SolutionEditorBase? seb = null, Part? part = null, Sim? sim = null) {
-      this.p = part;
-      this.seb = seb;
-      this.rng = rng;
-      this.sim = sim;
-    }
-  }
   public class InputRule {
     public IOTextures? newTextures;
-    public Func<RuleCtx, List<PuzzleModel.PuzzleIoM>>? displayMolecules;
+    public Func<List<PuzzleModel.PuzzleIoM>>? displayMolecules;
     /// <summary>
     /// Called very many times (unfortunately) to generate an output molecule.
     /// </summary>
-    public Func<RuleCtx, OriginalMolecule, Molecule>? chooseSpawnMolecule;
+    public Func<Sim?, SolutionEditorBase?, OriginalMolecule, Molecule>? chooseSpawnMolecule;
     public Action? onSimReset;
   }
   public class OutputRule {
     public IOTextures? newTextures;
     public Action? onSimReset;
+    public Func<List<PuzzleModel.PuzzleIoM>>? displayMolecules; 
+    public Func<List<PuzzleModel.PuzzleIoM>>? acceptedMolecules; 
   }
-  public interface RuleKind {
+  public interface IRuleKind {
     public bool TryRead(string data);
     public void ApplyRule(ExtraRules er);
   }
   [Serializable]
-  public class RandomInputRule : RuleKind {
+  public class MultiOutput : IRuleKind {
+    public int OutputMol = -1;
+    public List<PuzzleModel.PuzzleIoM>? Accepts = null;
+
+    public bool TryRead(string data) { 
+      var mo = YamlHelper.Deserializer.Deserialize<MultiOutput>(data);
+      if(mo is null) {return false;}
+      if(mo.OutputMol == -1) {return false;}
+      if(mo.Accepts is null) {return false;}
+
+      OutputMol = mo.OutputMol;
+      Accepts = mo.Accepts;
+      return true;
+    }
+    public void ApplyRule(ExtraRules er) {
+      er.outputMolRules.Add(OutputMol, new OutputRule() {
+        displayMolecules = () => {
+          return Accepts!;
+        },
+        acceptedMolecules = () => {
+          return Accepts!;
+        },
+      });
+    }
+  }
+  [Serializable]
+  public class RandomInputRule : IRuleKind {
     public int InputMol = -1;
     public List<PuzzleModel.PuzzleIoM>? RandomBag = null;
- 
+
     private List<Molecule> currentBag = new();
+
     public bool TryRead(string data) {
       var rir = YamlHelper.Deserializer.Deserialize<RandomInputRule>(data);
       if (rir is null) { return false; }
@@ -144,10 +183,10 @@ public class ExtraRules {
     public void ApplyRule(ExtraRules er) {
       er.inputMolRules.Add(InputMol, new InputRule() {
         newTextures = BLUE_INPUT,
-        displayMolecules = (_) => RandomBag!,
-        chooseSpawnMolecule = (ctx, _orig) => {  
-          int maxExcl = currentBag.Count; 
-          int choose = ctx.rng.Next(0, maxExcl); 
+        displayMolecules = () => RandomBag!,
+        chooseSpawnMolecule = (_, _, _) => { 
+          int maxExcl = currentBag.Count;
+          int choose = er.rng.Next(0, maxExcl);
           Molecule chosen = currentBag[choose];
           currentBag.RemoveAt(choose);
           MaybeResetBag();
