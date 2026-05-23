@@ -23,32 +23,33 @@ using MI = System.Reflection.MethodInfo;
 using MHS = ExtransmissionsMod.MoleculeHookState; // <- I'm lazy
 //dotnet build;rm Extransmissions.dll;cp bin/Debug/net4.5.2/Extransmissions.dll ./
 public class ExtransmissionsMod : QuintessentialMod {
+  public List<Func<Sim,bool>> shouldSuppressOutputs = new();
   public AtomType RandomAtom;
-  public static Texture origInputBase;
-  public static Texture origInputRing;
-  public static Texture origInputGloss;
-  public static Texture origInputBond;
-  public static Texture origOutputBase;
-  public static Texture origOutputRing;
-  public static Texture origOutputGloss;
-  public static Texture origOutputBond;
+  internal static Texture origInputBase;
+  internal static Texture origInputRing;
+  internal static Texture origInputGloss;
+  internal static Texture origInputBond;
+  internal static Texture origOutputBase;
+  internal static Texture origOutputRing;
+  internal static Texture origOutputGloss;
+  internal static Texture origOutputBond;
 
-  public enum MoleculeHookState {
+  internal enum MoleculeHookState {
     OFF, PRE_SOLVE_DRAW_INPUTS, DRAW_OUTPUTS
   }
-  public static MoleculeHookState molHookState = MoleculeHookState.OFF;
-  public static SolutionEditorBase molHookStateSeb = null;
-  public static readonly Random random = new();
+  internal static MoleculeHookState molHookState = MoleculeHookState.OFF;
+  internal static SolutionEditorBase molHookStateSeb = null;
+  internal static readonly Random random = new();
 
-  public static ConditionalWeakTable<SolutionEditorBase, ExtraRules> extraRulesTable = new();
-  public static ExtraRules maybeLastExtraRulesCreatedBySolutionInit = null;
-  public static Dictionary<Molecule, int> inputMolMap = new();
-  public static Dictionary<Molecule, int> outputMolMap = new();
+  internal static ConditionalWeakTable<SolutionEditorBase, ExtraRules> extraRulesTable = new();
+  internal static ExtraRules maybeLastExtraRulesCreatedBySolutionInit = null;
+  internal static Dictionary<Molecule, int> inputMolMap = new();
+  internal static Dictionary<Molecule, int> outputMolMap = new();
 
   public override void Load() {
   }
  
-  public void AcceptExtraOutputs(List<Part> list, Part item9, Sim s) { 
+  internal void AcceptExtraOutputs(List<Part> list, Part item9, Sim s) { 
     Solution method_1817() {
       return s.field_3818.method_502(); 
     }
@@ -91,7 +92,10 @@ public class ExtransmissionsMod : QuintessentialMod {
           Molecule orig = m;
           if (item9.method_1159().field_1553) {
             Maybe<Molecule> origShift = s.method_1848(hexIndex9 + orig.method_1100().Keys.First().Rotated(hexRotation));
-            if (origShift.method_1085() && !method_1833(origShift.method_1087(), list) && method_1845(hexIndex9, hexRotation, orig, origShift.method_1087())) {
+            if (!shouldSuppressOutputs.Any(e => e(s)) 
+                && origShift.method_1085() 
+                && !method_1833(origShift.method_1087(), list) 
+                && method_1845(hexIndex9, hexRotation, orig, origShift.method_1087())) {
               s.field_3823.Remove(origShift.method_1087());
               partSimState5.field_2730 = Math.Min(partSimState5.field_2730 + 1, item9.method_1169());
               partSimState5.field_2743 = true;
@@ -103,8 +107,8 @@ public class ExtransmissionsMod : QuintessentialMod {
     } 
   }
 
-  public delegate void origEditorMethod925(Molecule param_4569, Vector2 param_4570, HexIndex param_4571, float param_4572, float param_4573, float param_4574, float param_4575, bool param_4576, SolutionEditorBase param_4577);
-  public static void OnEditorMethod925(
+  internal delegate void origEditorMethod925(Molecule param_4569, Vector2 param_4570, HexIndex param_4571, float param_4572, float param_4573, float param_4574, float param_4575, bool param_4576, SolutionEditorBase param_4577);
+  internal static void OnEditorMethod925(
       origEditorMethod925 orig,
       Molecule molecule,
       Vector2 param_4570,
@@ -152,7 +156,7 @@ public class ExtransmissionsMod : QuintessentialMod {
     return;
   }
 
-  public static void OnSebMethod2000(On.SolutionEditorBase.orig_method_2000 orig,
+  internal static void OnSebMethod2000(On.SolutionEditorBase.orig_method_2000 orig,
       class_236 param_5573, Vector2 param_5574, Molecule molecule, bool param_5575) {
 
     bool altTexture = random.Next() > (Int32.MaxValue / 2);
@@ -217,7 +221,7 @@ public class ExtransmissionsMod : QuintessentialMod {
   }
 
   public Hook puzzleinfoscreen_method_1275;
-  public static void OnSolLoad(
+  internal static void OnSolLoad(
       Action<PuzzleInfoScreen, Solution> orig,
       PuzzleInfoScreen self,
       Solution param_5012) {
@@ -242,15 +246,15 @@ public class ExtransmissionsMod : QuintessentialMod {
 
 
   //method_1167()
-  public static Part moleculeHookPart = null;
-  public static Sim moleculeHookSimRef = null;
+  internal static Part moleculeHookPart = null;
+  internal static Sim moleculeHookSimRef = null;
   private static HashSet<CyclesSeen> cyclesSeen = new();
-  public static int simIterCounter = 0;
-  private record struct CyclesSeen {
-    public SolutionEditorBase seb;
-    public int cycle;
+  internal static int simIterCounter = 0;
+  internal record struct CyclesSeen {
+    internal SolutionEditorBase seb;
+    internal int cycle;
   }
-  public Molecule MoleculeSpawnHook(Molecule original) {
+  internal Molecule MoleculeSpawnHook(Molecule original) {
     int moleculeHookIdxNumber = moleculeHookPart is not null ? moleculeHookPart.method_1167() : -1;
     if (maybeLastExtraRulesCreatedBySolutionInit is not null
         && moleculeHookPart is not null
@@ -421,6 +425,6 @@ public class ExtransmissionsMod : QuintessentialMod {
     outputAcceptHook = null;
   }
 
-  public static void Log(string s) => Logger.Log($"[extransmissions] {s}");
+  internal static void Log(string s) => Logger.Log($"[extransmissions] {s}");
 
 }
