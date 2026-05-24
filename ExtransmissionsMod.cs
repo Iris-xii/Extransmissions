@@ -23,7 +23,7 @@ using MI = System.Reflection.MethodInfo;
 using MHS = ExtransmissionsMod.MoleculeHookState; // <- I'm lazy
 //dotnet build;rm Extransmissions.dll;cp bin/Debug/net4.5.2/Extransmissions.dll ./
 public class ExtransmissionsMod : QuintessentialMod {
-  public List<Func<Sim,bool>> shouldSuppressOutputs = new();
+  public List<Func<Sim, bool>> shouldSuppressOutputs = new();
   public AtomType RandomAtom;
   internal static Texture origInputBase;
   internal static Texture origInputRing;
@@ -48,10 +48,10 @@ public class ExtransmissionsMod : QuintessentialMod {
 
   public override void Load() {
   }
- 
-  internal void AcceptExtraOutputs(List<Part> list, Part item9, Sim s) { 
+
+  internal void AcceptExtraOutputs(List<Part> list, Part item9, Sim s) {
     Solution method_1817() {
-      return s.field_3818.method_502(); 
+      return s.field_3818.method_502();
     }
     bool method_1845(HexIndex a, HexRotation b, Molecule c, Molecule d) {
       return (bool)typeof(Sim).GetMethod("method_1845", BF.NonPublic | BF.Static)
@@ -65,17 +65,27 @@ public class ExtransmissionsMod : QuintessentialMod {
       typeof(Sim).GetMethod("method_1856", BF.NonPublic | BF.Instance)
       .Invoke(s, new object[] { param_5408 });
     }
+    bool method_1844(Molecule a, Molecule b) {
+      return (bool)typeof(Sim).GetMethod("method_1844", BF.NonPublic | BF.Static)
+      .Invoke(s, new object[] { a,b });
+    }
+    void method_1854_crash(string param_5403, HexIndex param_5404, HexIndex param_5405) {
+      Vector2 vector = class_187.field_1742.method_492(param_5404);
+      Vector2 vector2 = class_187.field_1742.method_492(param_5405);
+      s.field_3818.method_518(0f, param_5403, new Vector2[2] { vector, vector2 });
+    }
+#pragma warning disable CS8321
     int method_1846(HexIndex param_5385, Molecule param_5386, Molecule param_5387) {
       return (int)typeof(Sim).GetMethod("method_1846", BF.NonPublic | BF.Static)
       .Invoke(s, new object[] { param_5385, param_5386, param_5387 });
     }
-    //
+#pragma warning restore CS8321
     var seb = s.field_3818;
     var ER =
       extraRulesTable.GetValue(seb,
       (s) => new ExtraRules(maybeLastExtraRulesCreatedBySolutionInit, ExtraRules.SebToPuzzle(s)));
-    
-    if(s is null) {return ;}
+
+    if (s is null) { return; }
 
     Molecule maybeOrigOutputMol = item9.method_1185(method_1817());
     if (outputMolMap.ContainsKey(maybeOrigOutputMol)
@@ -92,19 +102,94 @@ public class ExtransmissionsMod : QuintessentialMod {
           Molecule orig = m;
           if (item9.method_1159().field_1553) {
             Maybe<Molecule> origShift = s.method_1848(hexIndex9 + orig.method_1100().Keys.First().Rotated(hexRotation));
-            if (!shouldSuppressOutputs.Any(e => e(s)) 
-                && origShift.method_1085() 
-                && !method_1833(origShift.method_1087(), list) 
+            if (!shouldSuppressOutputs.Any(e => e(s))
+                && origShift.method_1085()
+                && !method_1833(origShift.method_1087(), list)
                 && method_1845(hexIndex9, hexRotation, orig, origShift.method_1087())) {
               s.field_3823.Remove(origShift.method_1087());
               partSimState5.field_2730 = Math.Min(partSimState5.field_2730 + 1, item9.method_1169());
               partSimState5.field_2743 = true;
-              method_1856(class_238.field_1991.field_1868); 
-            } 
-          } 
+              method_1856(class_238.field_1991.field_1868);
+            }
+
+          }
         }
       }
-    } 
+      {
+        PartSimState partSimState5 = s.field_3821[item9];
+        HexIndex hexIndex9 = item9.method_1161();
+        HexRotation hexRotation = item9.method_1163();
+        Molecule orig = item9.method_1185(method_1817()); // <- replace? 
+        if (maybeOR.sinkAny && item9.method_1159().field_1553) {
+          var candidateMolecules = new List<Molecule>();
+          foreach (var atom in orig.method_1100()) {
+            HexIndex hexIndexShifted = hexIndex9 + atom.Key.Rotated(hexRotation);
+            var mm = Brimstone.API.FindMolecule(s, hexIndexShifted);
+            if (mm.method_1085()) {
+              candidateMolecules.Add(mm.method_1087());
+            }
+          }
+          //Maybe<Molecule> origShift = s.method_1848(hexIndex9 + orig.method_1100().Keys.First().Rotated(hexRotation));
+          foreach (var origShift in candidateMolecules) {
+            // Serializing them and de-serializing them is a bit jank but
+            // I didn't feel like writing a clone function by hand and otherwise
+            // there is weird action at a distance from the molecules referencing
+            // the same objects 
+            Molecule origMutated = new PuzzleModel.MoleculeM(orig).FromModel();
+            //Log($"BEFORE!! {YamlHelper.Serializer.Serialize(new PuzzleModel.MoleculeM(origMutated))}");
+            origMutated.method_1116(new(0, 0), hexRotation);
+            origMutated.method_1118(hexIndex9);
+            //Log($"HEXINDEX {hexIndex9.Q},{hexIndex9.R} R:{hexRotation}");
+            Molecule origShiftMutated = new PuzzleModel.MoleculeM(origShift).FromModel();
+            List<HexIndex> inBaseButNotGrabbed = new();
+
+            foreach (var kv in origMutated.method_1100()) { // BASE
+              kv.Value.field_2275 = VanillaAtoms.salt;
+              inBaseButNotGrabbed.Add(kv.Key);
+            }
+            foreach (var kv in origShiftMutated.method_1100()) { // INPUT ATTEMPT
+              kv.Value.field_2275 = VanillaAtoms.salt;
+              inBaseButNotGrabbed.Remove(kv.Key);
+              //seb.field_3935.Add(new class_228(seb, (enum_7)1, class_187.field_1742.method_492(kv.Key), Brimstone.API.GetAnimation("textures/parts/calcification_glyph_flash.array", "calcify_glyph", 10), 2f, Vector2.Zero, /*part.method_1163().ToRadians()*/ 0f));
+            }
+            //Log($"A origMutated {YamlHelper.Serializer.Serialize(new PuzzleModel.MoleculeM(origMutated))}");
+            //Log($"A origShiftMutated {YamlHelper.Serializer.Serialize(new PuzzleModel.MoleculeM(origShiftMutated))}");
+            foreach (var hi in inBaseButNotGrabbed) {
+              //seb.field_3935.Add(new class_228(seb, (enum_7)1, class_187.field_1742.method_492(hi), Brimstone.API.GetAnimation("textures/parts/calcification_glyph_flash.array", "calcify_glyph", 10), 2f, Vector2.Zero, /*part.method_1163().ToRadians()*/ 0f));
+              //Brimstone.API.RemoveHexFromMolecule(origMutated, hi);
+              origMutated.method_1107(hi);
+            }
+            //Log($"B origMutated {YamlHelper.Serializer.Serialize(new PuzzleModel.MoleculeM(origMutated))}");
+            //Log($"B origShiftMutated {YamlHelper.Serializer.Serialize(new PuzzleModel.MoleculeM(origShiftMutated))}");
+
+
+            // TODO: BOND ADJUSTING 
+            //var bondList = new List<class_277>();
+            //foreach (var item in origShiftMutated.method_1101()) {
+            //  bondList.Add(item);
+            //} 
+            //foreach (var item in bondList) {
+            //  enum_126 kind = item.field_2186;
+            //  HexIndex a = item.field_2187;
+            //  HexIndex b = item.field_2188;
+            //  origMutated.method_1112(kind,a,b,new());
+            //  origShiftMutated.method_1112(kind,a,b,new());
+            //}
+            if (!shouldSuppressOutputs.Any(e => e(s)) // sink any! 
+                && !method_1833(origShift, list)
+                && method_1844(origMutated, origShiftMutated)) {
+              s.field_3823.Remove(origShift);
+              partSimState5.field_2730 = Math.Min(partSimState5.field_2730 + 0, item9.method_1169());
+              partSimState5.field_2743 = true;
+              method_1856(class_238.field_1991.field_1868);
+              if (maybeOR.wrongMolCrashesSim) {
+                method_1854_crash("Invalid outputs are not allowed in this puzzle.", hexIndex9, hexIndex9);
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   internal delegate void origEditorMethod925(Molecule param_4569, Vector2 param_4570, HexIndex param_4571, float param_4572, float param_4573, float param_4574, float param_4575, bool param_4576, SolutionEditorBase param_4577);
@@ -403,13 +488,13 @@ public class ExtransmissionsMod : QuintessentialMod {
     outputAcceptHook = new ILHook(
       typeof(Sim).GetMethod("orig_method_1832", BF.NonPublic | BF.Instance),
       ilc => {
-        ILCursor c = new(ilc); 
+        ILCursor c = new(ilc);
         c.GotoNext(MoveType.After,
-          i => i.MatchCallOrCallvirt(typeof(Sim).GetMethod("method_1848"))); 
+          i => i.MatchCallOrCallvirt(typeof(Sim).GetMethod("method_1848")));
         c.Emit(Mono.Cecil.Cil.OpCodes.Ldloc, 0);
         c.Emit(Mono.Cecil.Cil.OpCodes.Ldloc, 88);
         c.Emit(Mono.Cecil.Cil.OpCodes.Ldarg, 0);
-        c.EmitDelegate(AcceptExtraOutputs); 
+        c.EmitDelegate(AcceptExtraOutputs);
       }
     );
 

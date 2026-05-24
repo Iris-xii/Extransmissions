@@ -37,18 +37,20 @@ public class ExtraRules {
     newTextureBond = class_235.method_615("textures/parts/alt_output_bond"),
   };
   const string PREFIX = "extransmissions::rule::";
-  private static Dictionary<string, IRuleKind> ruleKinds = new() {
-    {"RandomInputRule", new RandomInputRule()},
-    {"RandomInput", new RandomInputRule()}, //<- adding 'Rule' is redundant AF but I already have puzzles with the old name
-    {"MultiOutput",new MultiOutput()},
+  public delegate IRuleApply? RuleKind(string data);
+  private static Dictionary<string, RuleKind> ruleKinds = new() {
+    {"RandomInputRule",  RandomInputRule.TryRead},
+    {"RandomInput",  RandomInputRule.TryRead}, //<- adding 'Rule' is redundant AF but I already have puzzles with the old name
+    {"MultiOutput", MultiOutput.TryRead},
   };
 
   int hash = 0;
   public Random rng = new();
   public Dictionary<int, InputRule> inputMolRules = new();
   public Dictionary<int, OutputRule> outputMolRules = new();
+  List<IRuleApply> ruleApply = new();
 
-  public static void AddRuleKind(string type, IRuleKind rk) => ruleKinds.Add(type, rk);
+  public static void AddRuleKind(string type, RuleKind rk) => ruleKinds.Add(type, rk);
 
 
 
@@ -61,11 +63,7 @@ public class ExtraRules {
       if (outputRule.Value.onSimReset is not null) { outputRule.Value.onSimReset(); }
     }
   }
-  /// <summary> 
-  /// Alter ExtraRules according to customPermissionString if it has the prefix
-  /// extransmissions::rule:: , ignore otherwise, error if somehow invalid. 
-  /// </summary>
-  /// <param name="customPermissionString">An entry in puzzle.CustomPermissions, unprocessed</param>
+
   public void ReadCustomPermissionString(string customPermissionString) {
     if (customPermissionString.StartsWith(PREFIX)) {
       var withoutEtPrefix = customPermissionString.Substring(PREFIX.Length);
@@ -75,9 +73,10 @@ public class ExtraRules {
       //Log($"Loading data:\n{withoutPrefix}\n");
       if (type != "") { Log($"Loading type: {type}"); }
       if (type != ""
-          && ruleKinds[type] is IRuleKind rk
-          && rk.TryRead(withoutPrefix)) {
-        rk.ApplyRule(this);
+          && ruleKinds[type] is RuleKind rk
+          && rk(withoutPrefix) is IRuleApply apply) {
+        ruleApply.Add(apply);
+        apply.ApplyRule(this);
         //if (rk is RandomInputRule rir) { Log($"{rir.DebugStr()}"); }
       }
       else {
@@ -89,21 +88,38 @@ public class ExtraRules {
 
   internal ExtraRules(ExtraRules er) {
     this.hash = er.hash;
-    this.inputMolRules = er.inputMolRules;
-    this.outputMolRules = er.outputMolRules;
+    this.inputMolRules = new();
+    this.outputMolRules = new();
+    this.ruleApply = new();
+    foreach (var item in er.ruleApply) {
+      ruleApply.Add(item.Clone());
+    }
+    foreach (var item in this.ruleApply) {
+      item.ApplyRule(this);
+    }
     SimReset();
   }
   internal ExtraRules(ExtraRules? er, Puzzle p) {
     if (er is not null) {
       this.hash = er.hash;
-      this.inputMolRules = er.inputMolRules;
-      this.outputMolRules = er.outputMolRules;
+      this.inputMolRules = new();
+      this.outputMolRules = new();
+      this.ruleApply = new();
+      foreach (var item in er.ruleApply) {
+        ruleApply.Add(item.Clone());
+      }
+      foreach (var item in this.ruleApply) {
+        item.ApplyRule(this);
+      }
       SimReset();
     }
     else {
       int hash = p.field_2766.GetHashCode();
       this.hash = hash;
       var perms = p.CustomPermissions;
+      this.inputMolRules = new();
+      this.outputMolRules = new();
+      this.ruleApply = new();
       foreach (var item in perms) {
         ReadCustomPermissionString(item);
       }
@@ -121,70 +137,87 @@ public class ExtraRules {
   public class InputRule {
     public IOTextures? newTextures;
     public Func<List<PuzzleModel.PuzzleIoM>>? displayMolecules;
-    /// <summary>
-    /// Called very many times (unfortunately) to generate an output molecule.
-    /// </summary>
     public Func<Sim?, SolutionEditorBase?, OriginalMolecule, Molecule>? chooseSpawnMolecule;
     public Action? onSimReset;
   }
   public class OutputRule {
     public IOTextures? newTextures;
     public Action? onSimReset;
-    public Func<List<PuzzleModel.PuzzleIoM>>? displayMolecules; 
-    public Func<List<PuzzleModel.PuzzleIoM>>? acceptedMolecules; 
+    public Func<List<PuzzleModel.PuzzleIoM>>? displayMolecules;
+    public Func<List<PuzzleModel.PuzzleIoM>>? acceptedMolecules;
+    public bool sinkAny = false;
+    public bool wrongMolCrashesSim = false;
   }
-  public interface IRuleKind {
-    public bool TryRead(string data);
+  public interface IRuleApply {
     public void ApplyRule(ExtraRules er);
+    /// Should deep clone anything that may be modified, two objects should be independent.
+    public IRuleApply Clone();
   }
   [Serializable]
-  public class MultiOutput : IRuleKind {
+  public class MultiOutput : IRuleApply {
     public int OutputMol = -1;
     public List<PuzzleModel.PuzzleIoM>? Accepts = null;
+    public bool SinkAny = false;
+    public bool WrongMolCrashesSim = false;
 
-    public bool TryRead(string data) { 
+    public static IRuleApply? TryRead(string data) {
       var mo = YamlHelper.Deserializer.Deserialize<MultiOutput>(data);
-      if(mo is null) {return false;}
-      if(mo.OutputMol == -1) {return false;}
-      if(mo.Accepts is null) {return false;}
-
-      OutputMol = mo.OutputMol;
-      Accepts = mo.Accepts;
-      return true;
+      if (mo is null) { return null; }
+      if (mo.OutputMol == -1) { return null; }
+      if (mo.Accepts is null) { return null; }
+      return mo;
     }
-    public void ApplyRule(ExtraRules er) {
+    public IRuleApply Clone() {
+      return new MultiOutput {
+        OutputMol = this.OutputMol,
+        Accepts = this.Accepts,
+        SinkAny = this.SinkAny,
+        WrongMolCrashesSim = this.WrongMolCrashesSim,
+      };
+    }
+    public void ApplyRule(ExtraRules er) { 
       er.outputMolRules.Add(OutputMol, new OutputRule() {
+        newTextures = SinkAny ? BLUE_OUTPUT : null,
         displayMolecules = () => {
           return Accepts!;
         },
         acceptedMolecules = () => {
           return Accepts!;
         },
+        sinkAny = this.SinkAny,
+        wrongMolCrashesSim = this.WrongMolCrashesSim,
       });
     }
   }
   [Serializable]
-  public class RandomInputRule : IRuleKind {
+  public class RandomInputRule : IRuleApply {
     public int InputMol = -1;
     public List<PuzzleModel.PuzzleIoM>? RandomBag = null;
 
-    private List<Molecule> currentBag = new();
+    List<Molecule> currentBag = new();
 
-    public bool TryRead(string data) {
+    public IRuleApply Clone() {
+      var clone = new RandomInputRule() {
+        InputMol = this.InputMol,
+        RandomBag = this.RandomBag,
+        currentBag = new(),
+      };
+      clone.MaybeResetBag();
+      return clone;
+    }
+    public static IRuleApply? TryRead(string data) {
       var rir = YamlHelper.Deserializer.Deserialize<RandomInputRule>(data);
-      if (rir is null) { return false; }
-      if (rir.InputMol == -1) { return false; }
-      if (rir.RandomBag is null || rir.RandomBag.Count <= 0) { return false; }
-      InputMol = rir.InputMol;
-      RandomBag = rir.RandomBag;
-      MaybeResetBag();
-      return true;
+      if (rir is null) { return null; }
+      if (rir.InputMol == -1) { return null; }
+      if (rir.RandomBag is null || rir.RandomBag.Count <= 0) { return null; }
+      rir.MaybeResetBag();
+      return rir;
     }
     public void ApplyRule(ExtraRules er) {
       er.inputMolRules.Add(InputMol, new InputRule() {
         newTextures = BLUE_INPUT,
         displayMolecules = () => RandomBag!,
-        chooseSpawnMolecule = (_, _, _) => { 
+        chooseSpawnMolecule = (_, _, _) => {
           int maxExcl = currentBag.Count;
           int choose = er.rng.Next(0, maxExcl);
           Molecule chosen = currentBag[choose];
@@ -198,7 +231,7 @@ public class ExtraRules {
         },
       });
     }
-    private void MaybeResetBag() {
+    void MaybeResetBag() {
       if (RandomBag == null) { return; }
       if (currentBag.Count > 0) { return; }
       currentBag = new();
