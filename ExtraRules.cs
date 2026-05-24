@@ -145,6 +145,8 @@ public class ExtraRules {
     public Action? onSimReset;
     public Func<List<PuzzleModel.PuzzleIoM>>? displayMolecules;
     public Func<List<PuzzleModel.PuzzleIoM>>? acceptedMolecules;
+    public Action? onCorrectMoleculeReceived;
+    public Action? onWrongMoleculeReceived;
     public bool sinkAny = false;
     public bool wrongMolCrashesSim = false;
   }

@@ -67,7 +67,7 @@ public class ExtransmissionsMod : QuintessentialMod {
     }
     bool method_1844(Molecule a, Molecule b) {
       return (bool)typeof(Sim).GetMethod("method_1844", BF.NonPublic | BF.Static)
-      .Invoke(s, new object[] { a,b });
+      .Invoke(s, new object[] { a, b });
     }
     void method_1854_crash(string param_5403, HexIndex param_5404, HexIndex param_5405) {
       Vector2 vector = class_187.field_1742.method_492(param_5404);
@@ -110,6 +110,7 @@ public class ExtransmissionsMod : QuintessentialMod {
               partSimState5.field_2730 = Math.Min(partSimState5.field_2730 + 1, item9.method_1169());
               partSimState5.field_2743 = true;
               method_1856(class_238.field_1991.field_1868);
+              maybeOR.onCorrectMoleculeReceived?.Invoke();
             }
 
           }
@@ -182,6 +183,7 @@ public class ExtransmissionsMod : QuintessentialMod {
               partSimState5.field_2730 = Math.Min(partSimState5.field_2730 + 0, item9.method_1169());
               partSimState5.field_2743 = true;
               method_1856(class_238.field_1991.field_1868);
+              maybeOR.onWrongMoleculeReceived?.Invoke();
               if (maybeOR.wrongMolCrashesSim) {
                 method_1854_crash("Invalid outputs are not allowed in this puzzle.", hexIndex9, hexIndex9);
               }
