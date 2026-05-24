@@ -113,7 +113,7 @@ public class ExtraRules {
       }
       SimReset();
     }
-    else {
+    else if(p is not null && p.field_2766 is not null && p.CustomPermissions is not null) {
       int hash = p.field_2766.GetHashCode();
       this.hash = hash;
       var perms = p.CustomPermissions;
@@ -123,6 +123,12 @@ public class ExtraRules {
       foreach (var item in perms) {
         ReadCustomPermissionString(item);
       }
+      SimReset();
+    } else {
+      this.hash = 0;
+      this.inputMolRules = new();
+      this.outputMolRules = new();
+      this.ruleApply = new();
       SimReset();
     }
   }

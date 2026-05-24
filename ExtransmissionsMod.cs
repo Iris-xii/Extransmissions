@@ -314,6 +314,14 @@ public class ExtransmissionsMod : QuintessentialMod {
       Solution param_5012) {
     Puzzle puzzle = param_5012.method_1934();
     Log($"Reading solution {param_5012.field_3915} @ {puzzle.field_2766}");
+    if(puzzle is null || puzzle.field_2766 is null || puzzle.CustomPermissions is null) {
+      Log("Puzzle is null, extransmissions will not act on this puzzle.");
+      inputMolMap.Clear();
+      outputMolMap.Clear();
+      maybeLastExtraRulesCreatedBySolutionInit = new(null,null);
+      orig(self, param_5012);
+      return;
+    }
     ExtraRules extraRules = new(null, puzzle);
 
     inputMolMap.Clear();
