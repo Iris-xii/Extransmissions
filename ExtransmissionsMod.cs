@@ -48,38 +48,51 @@ public class ExtransmissionsMod : QuintessentialMod {
 
   public override void Load() {
   }
+  // If I can avoid hammering reflection methods constantly, that's probably good?
+  internal delegate bool m1845(HexIndex a,HexRotation b,Molecule c,Molecule d);
+  internal static m1845 method_1845 = typeof(Sim)
+      .GetMethod("method_1845", BF.NonPublic | BF.Static).CreateDelegate<m1845>();
+  internal delegate bool m1833(Sim sim,Molecule a, List<Part> b);
+  internal static m1833 method_1833 = typeof(Sim)
+    .GetMethod("method_1833", BF.NonPublic | BF.Instance).CreateDelegate<m1833>();
+  internal delegate void m1856(Sim sim,Sound a);
+  internal static m1856 method_1856 = typeof(Sim)
+    .GetMethod("method_1856", BF.NonPublic | BF.Instance).CreateDelegate<m1856>();
+  internal delegate bool m1844(Molecule a, Molecule b);
+  internal static m1844 method_1844 = typeof(Sim)
+    .GetMethod("method_1844", BF.NonPublic | BF.Static).CreateDelegate<m1844>(); 
 
   internal void AcceptExtraOutputs(List<Part> list, Part item9, Sim s) {
     Solution method_1817() {
       return s.field_3818.method_502();
     }
-    bool method_1845(HexIndex a, HexRotation b, Molecule c, Molecule d) {
-      return (bool)typeof(Sim).GetMethod("method_1845", BF.NonPublic | BF.Static)
-      .Invoke(s, new object[] { a, b, c, d });
-    }
-    bool method_1833(Molecule a, List<Part> b) {
-      return (bool)typeof(Sim).GetMethod("method_1833", BF.NonPublic | BF.Instance)
-      .Invoke(s, new object[] { a, b });
-    }
-    void method_1856(Sound param_5408) {
-      typeof(Sim).GetMethod("method_1856", BF.NonPublic | BF.Instance)
-      .Invoke(s, new object[] { param_5408 });
-    }
-    bool method_1844(Molecule a, Molecule b) {
-      return (bool)typeof(Sim).GetMethod("method_1844", BF.NonPublic | BF.Static)
-      .Invoke(s, new object[] { a, b });
-    }
+    #region OLD
+    //bool method_1845(HexIndex a, HexRotation b, Molecule c, Molecule d) {
+    //  return (bool)typeof(Sim).GetMethod("method_1845", BF.NonPublic | BF.Static)
+    //  .Invoke(s, new object[] { a, b, c, d });
+    //}
+    //bool method_1833(Molecule a, List<Part> b) {
+    //  return (bool)typeof(Sim).GetMethod("method_1833", BF.NonPublic | BF.Instance)
+    //  .Invoke(s, new object[] { a, b });
+    //}
+    //void method_1856(Sound param_5408) {
+    //  typeof(Sim).GetMethod("method_1856", BF.NonPublic | BF.Instance)
+    //  .Invoke(s, new object[] { param_5408 });
+    //}
+    //bool method_1844(Molecule a, Molecule b) {
+    //  return (bool)typeof(Sim).GetMethod("method_1844", BF.NonPublic | BF.Static)
+    //  .Invoke(s, new object[] { a, b });
+    //}
+    #endregion OLD
     void method_1854_crash(string param_5403, HexIndex param_5404, HexIndex param_5405) {
       Vector2 vector = class_187.field_1742.method_492(param_5404);
       Vector2 vector2 = class_187.field_1742.method_492(param_5405);
       s.field_3818.method_518(0f, param_5403, new Vector2[2] { vector, vector2 });
-    }
-#pragma warning disable CS8321
-    int method_1846(HexIndex param_5385, Molecule param_5386, Molecule param_5387) {
-      return (int)typeof(Sim).GetMethod("method_1846", BF.NonPublic | BF.Static)
-      .Invoke(s, new object[] { param_5385, param_5386, param_5387 });
-    }
-#pragma warning restore CS8321
+    } 
+    //int method_1846(HexIndex param_5385, Molecule param_5386, Molecule param_5387) {
+    //  return (int)typeof(Sim).GetMethod("method_1846", BF.NonPublic | BF.Static)
+    //  .Invoke(s, new object[] { param_5385, param_5386, param_5387 });
+    //} 
     var seb = s.field_3818;
     var ER =
       extraRulesTable.GetValue(seb,
@@ -104,12 +117,12 @@ public class ExtransmissionsMod : QuintessentialMod {
             Maybe<Molecule> origShift = s.method_1848(hexIndex9 + orig.method_1100().Keys.First().Rotated(hexRotation));
             if (!shouldSuppressOutputs.Any(e => e(s))
                 && origShift.method_1085()
-                && !method_1833(origShift.method_1087(), list)
+                && !method_1833(s,origShift.method_1087(), list)
                 && method_1845(hexIndex9, hexRotation, orig, origShift.method_1087())) {
               s.field_3823.Remove(origShift.method_1087());
               partSimState5.field_2730 = Math.Min(partSimState5.field_2730 + 1, item9.method_1169());
               partSimState5.field_2743 = true;
-              method_1856(class_238.field_1991.field_1868);
+              method_1856(s,class_238.field_1991.field_1868);
               maybeOR.onCorrectMoleculeReceived?.Invoke();
             }
 
@@ -177,12 +190,12 @@ public class ExtransmissionsMod : QuintessentialMod {
             //  origShiftMutated.method_1112(kind,a,b,new());
             //}
             if (!shouldSuppressOutputs.Any(e => e(s)) // sink any! 
-                && !method_1833(origShift, list)
+                && !method_1833(s,origShift, list)
                 && method_1844(origMutated, origShiftMutated)) {
               s.field_3823.Remove(origShift);
               partSimState5.field_2730 = Math.Min(partSimState5.field_2730 + 0, item9.method_1169());
               partSimState5.field_2743 = true;
-              method_1856(class_238.field_1991.field_1868);
+              method_1856(s,class_238.field_1991.field_1868);
               maybeOR.onWrongMoleculeReceived?.Invoke();
               if (maybeOR.wrongMolCrashesSim) {
                 method_1854_crash("Invalid outputs are not allowed in this puzzle.", hexIndex9, hexIndex9);
