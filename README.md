@@ -22,5 +22,11 @@ Allows one output to accept multiple inputs.
 
 Additionally, it also allows an output to accept *all* molecules that fit, without making progress towards solving the puzzle or downright causing the solution to fail. This can be used to prevent 'output conditionals' in which you sort molecules by placing them over an input and seeing if they get accepted or not.
 
+#### IOPair Rule
+Makes one *Input* random, and one *Output* depend on that random Input.
+
+This means every time a certain random molecule is pulled from the Input, a specific Output is required. For example, you could have the input randomly switch between fire and water, and the output require you to output Gold when the random input has been Fire, and Salt when the random input has been Water.
+See `newruleexample.puzzle.yaml` for an example of this rule.
+
 #### Additional Rules
 Additional rules allowing more complex relationships between inputs and outputs are possible, but not currently included.
