@@ -1,0 +1,93 @@
+Name: NEW RULE
+ID: c049690451732177
+Author: ''
+Inputs:
+- Molecule:
+    Atoms:
+    - AtomType: Extransmissions:random
+      Position:
+        Pos: 0,0
+    - AtomType: Extransmissions:random
+      Position:
+        Pos: 1,0
+    Bonds:
+    - A:
+        Pos: 0,0
+      B:
+        Pos: 1,0
+      BondTypes:
+      - standard
+    Name: ''
+  AmountOverride: 0
+Outputs:
+- Molecule:
+    Atoms:
+    - AtomType: water
+      Position:
+        Pos: 0,0
+    Bonds: []
+    Name: ''
+  AmountOverride: 0
+OutputMultiplier: 1
+PermissionFlags: Disposal, CoreTools
+CustomPermissions: 
+  - extransmutations-cardinal-inversion
+  - |
+    extransmissions::rule::IOPair::InputMol: 0
+    OutputMol: 0
+    RandomInputs:
+    - Molecule:
+        Atoms:
+        - AtomType: fire
+          Position:
+            Pos: 0,0
+        - AtomType: fire
+          Position:
+            Pos: 1,0
+        Bonds:
+        - A:
+            Pos: 0,0
+          B:
+            Pos: 1,0
+          BondTypes:
+          - standard
+        Name: ''
+      AmountOverride: 0
+    - Molecule:
+        Atoms:
+        - AtomType: water
+          Position:
+            Pos: 1,0
+        - AtomType: water
+          Position:
+            Pos: 0,0
+        Bonds:
+        - A:
+            Pos: 0,0
+          B:
+            Pos: 1,0
+          BondTypes:
+          - standard
+        Name: ''
+      AmountOverride: 0
+    RandomOutputs:
+    - Molecule:
+        Atoms:
+        - AtomType: water
+          Position:
+            Pos: 0,0
+        Bonds: []
+        Name: ''
+      AmountOverride: 0
+    - Molecule:
+        Atoms:
+        - AtomType: fire
+          Position:
+            Pos: 0,0
+        Bonds: []
+        Name: ''
+      AmountOverride: 0
+Highlights: []
+ProductionInfo: 
+Conduits: 
+Payloads: 

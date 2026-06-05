@@ -42,6 +42,7 @@ public class ExtraRules {
     {"RandomInputRule",  RandomInputRule.TryRead},
     {"RandomInput",  RandomInputRule.TryRead}, //<- adding 'Rule' is redundant AF but I already have puzzles with the old name
     {"MultiOutput", MultiOutput.TryRead},
+    {"IOPair", IOPair.TryRead},
   };
 
   int hash = 0;
@@ -113,7 +114,7 @@ public class ExtraRules {
       }
       SimReset();
     }
-    else if(p is not null && p.field_2766 is not null && p.CustomPermissions is not null) {
+    else if (p is not null && p.field_2766 is not null && p.CustomPermissions is not null) {
       int hash = p.field_2766.GetHashCode();
       this.hash = hash;
       var perms = p.CustomPermissions;
@@ -124,7 +125,8 @@ public class ExtraRules {
         ReadCustomPermissionString(item);
       }
       SimReset();
-    } else {
+    }
+    else {
       this.hash = 0;
       this.inputMolRules = new();
       this.outputMolRules = new();
@@ -183,7 +185,7 @@ public class ExtraRules {
         WrongMolCrashesSim = this.WrongMolCrashesSim,
       };
     }
-    public void ApplyRule(ExtraRules er) { 
+    public void ApplyRule(ExtraRules er) {
       er.outputMolRules.Add(OutputMol, new OutputRule() {
         newTextures = SinkAny ? BLUE_OUTPUT : null,
         displayMolecules = () => {
@@ -246,6 +248,89 @@ public class ExtraRules {
       foreach (var item in RandomBag) {
         currentBag.Add(item.Molecule.FromModel());
       }
+    }
+  }
+
+
+  [Serializable]
+  public class IOPair : IRuleApply {
+    public int InputMol = -1;
+    public int OutputMol = -1;
+    public List<PuzzleModel.PuzzleIoM>? RandomInputs = null;
+    public List<PuzzleModel.PuzzleIoM>? RandomOutputs = null;
+
+
+    internal record struct MolPair {
+      internal PuzzleModel.MoleculeM i;
+      internal PuzzleModel.MoleculeM o;
+    }
+    internal Queue<MolPair> molPairs = new();
+
+
+    public IRuleApply Clone() {
+      var clone = new IOPair() {
+        InputMol = this.InputMol,
+        OutputMol = this.OutputMol,
+        RandomInputs = this.RandomInputs,
+        RandomOutputs = this.RandomOutputs,
+        molPairs = new(),
+      };
+      return clone;
+    }
+
+    public static IRuleApply? TryRead(string data) {
+      var iop = YamlHelper.Deserializer.Deserialize<IOPair>(data);
+      if (iop is null) { return null; }
+      if (iop.InputMol == -1) { return null; }
+      if (iop.OutputMol == -1) { return null; }
+      if (iop.RandomOutputs is null || iop.RandomOutputs.Count <= 0) { return null; }
+      if (iop.RandomInputs is null || iop.RandomInputs.Count <= 0) { return null; }
+      return iop;
+    }
+
+    internal Molecule ChoosePair(ExtraRules er) {
+      int choose = er.rng.Next(0, RandomInputs!.Count); 
+      molPairs.Enqueue(new () {
+        i = RandomInputs![choose].Molecule,
+        o = RandomOutputs![choose].Molecule,
+      });
+      //Log($"New pair chosen, current size {molPairs.Count}!  @ {this.GetHashCode()}");
+      //if(molPairs.Count > 0) Log($"PEEK! {molPairs.Peek()}");
+      //if(molPairs.Count > 0) Log($"PEEKi! {molPairs.Peek().i}");
+      //if(molPairs.Count > 0) Log($"PEEKo! {molPairs.Peek().o}");
+      return RandomInputs[choose].Molecule.FromModel();
+    }
+
+    internal void ResetPairs() {
+      //Log("RESET PAIRS");
+      molPairs = new();
+    }
+    internal void AdvancePairs() {
+      //Log("DEQUEUE PAIR");
+      molPairs.Dequeue();
+    }
+
+    public void ApplyRule(ExtraRules er) {
+      er.inputMolRules.Add(InputMol, new InputRule() {
+        newTextures = BLUE_INPUT,
+        displayMolecules = () => RandomInputs!,
+        chooseSpawnMolecule = (_sim, _seb, _o) => ChoosePair(er),
+        onSimReset = ResetPairs,
+      });
+      er.outputMolRules.Add(OutputMol, new OutputRule() {
+        newTextures = BLUE_OUTPUT,
+        displayMolecules = () => molPairs.Count == 0 ? RandomOutputs! : new List<PuzzleModel.PuzzleIoM>() { new() { Molecule = molPairs.Peek().o } },
+        acceptedMolecules = () => {
+          var accept = new List<PuzzleModel.PuzzleIoM>();
+          if (molPairs.Count != 0) { accept.Add(new() { Molecule = molPairs.Peek().o }); }
+          //Log(YamlHelper.Serializer.Serialize(accept));
+          //Log($"COUNT : {molPairs.Count} @ {this.GetHashCode()}");
+          return accept;
+        },
+        onCorrectMoleculeReceived = AdvancePairs,
+        sinkAny = true,
+        wrongMolCrashesSim = true,
+      });
     }
   }
 }
