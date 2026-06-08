@@ -203,6 +203,7 @@ public class ExtraRules {
   public class RandomInputRule : IRuleApply {
     public int InputMol = -1;
     public List<PuzzleModel.PuzzleIoM>? RandomBag = null;
+    public int BagMult = 1;
 
     List<Molecule> currentBag = new();
 
@@ -246,7 +247,9 @@ public class ExtraRules {
       if (currentBag.Count > 0) { return; }
       currentBag = new();
       foreach (var item in RandomBag) {
-        currentBag.Add(item.Molecule.FromModel());
+        for (int i = 0; i < BagMult; i++) {
+          currentBag.Add(item.Molecule.FromModel());
+        }
       }
     }
   }
@@ -289,8 +292,8 @@ public class ExtraRules {
     }
 
     internal Molecule ChoosePair(ExtraRules er) {
-      int choose = er.rng.Next(0, RandomInputs!.Count); 
-      molPairs.Enqueue(new () {
+      int choose = er.rng.Next(0, RandomInputs!.Count);
+      molPairs.Enqueue(new() {
         i = RandomInputs![choose].Molecule,
         o = RandomOutputs![choose].Molecule,
       });
