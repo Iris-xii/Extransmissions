@@ -1,7 +1,7 @@
 # Extransmissions
 
 **WARNING / UPDATE:**
-**Extransmissions has been superceded by a mod with a much better foundation, https://github.com/Iris-xii/Extrawners. Extransmissions will remain here, but is unlikely to see much activity. Old puzzles (as long as they don't use the IOPair rule) can be easily turned into Extrawners puzzles.**
+**Extransmissions has been superseded by a mod with a much better foundation, https://github.com/Iris-xii/Extrawners. Extransmissions will remain here, but is unlikely to see much activity. Old puzzles (as long as they don't use the IOPair rule) can be easily turned into Extrawners puzzles.**
 
 This is a mod adds additional ways to transmit molecules in and out of a puzzle, or extransmissions, if you will. 
 
